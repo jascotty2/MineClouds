@@ -1,0 +1,15 @@
+name: Clouds
+main: me.jascotty2.clouds.Clouds
+version: 0.1
+website: https://github.com/jascotty2
+author: jascotty2
+description: Generates Snow Block Clouds
+commands:
+  clouds:
+    description: Main command for plugin
+    usage: |
+         /clouds generate
+    permission: clouds
+permissions:
+  clouds:
+    default: op
