@@ -47,40 +47,38 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 		getServer().getPluginManager().registerEvents(this, this);
 	}
-	RunThread run = null;
 
 	@Override
 	public boolean onCommand(CommandSender sender, Command command,
 			String commandLabel, String[] args) {
 		if (args.length == 1 && (args[0].equalsIgnoreCase("generate") || args[0].equalsIgnoreCase("gen"))) {
-			// for now, only in the present chunk
-			//genClouds(((Player) sender).getLocation().getChunk());
-			//genClouds(((Player) sender).getLocation().clone(), 11);
-			if (runID != -1) {
-				sender.sendMessage("Still Busy!");
-				sender.sendMessage("On Run " + run.run + " of " + (run.area * run.area));
+			if(!(sender instanceof Player)) {
+				sender.sendMessage("Must be a player to use this command");
 				return true;
-			} else if (sender instanceof Player) {
-				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, ((Player) sender).getLocation().getWorld()), 1, 1);
-			} else {
-				World w = getServer().getWorld("NewEarth2013");
-				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, w), 1, 1);
 			}
-			sender.sendMessage(ChatColor.AQUA + "Starting!");
-		} else if (args.length == 2) {
-			try {
-				clearClouds(((Player) sender).getLocation().getChunk());
-				genClouds(((Player) sender).getLocation().getChunk(), true);
-			} catch (Exception ex) {
-				getLogger().log(Level.SEVERE, null, ex);
-			}
-		} else {
+			// for now, only in the present chunk
+			// clear existing clouds here
+			clearClouds(((Player) sender).getLocation().getChunk());
+			// regenerate chunk
+			genClouds(((Player) sender).getLocation().getChunk(), true);
+			sender.sendMessage(ChatColor.AQUA + "Clouds Regenerated!");
+//			if (runID != -1) {
+//				sender.sendMessage("Still Busy!");
+//				sender.sendMessage("On Run " + run.run + " of " + (run.area * run.area));
+//				return true;
+//			} else if (sender instanceof Player) {
+//				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, ((Player) sender).getLocation().getWorld()), 1, 1);
+//			} else {
+//				World w = getServer().getWorld("NewEarth2013");
+//				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, w), 1, 1);
+//			}
+//			sender.sendMessage(ChatColor.AQUA + "Starting!");
+		}
+		else {
 			return false;
 		}
 		return true;
 	}
-	int runID = -1;
-
 	private static class Point3D {
 
 		public int x, y, z;
@@ -95,168 +93,171 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 	}
 
-	class RunThread implements Runnable {
-
-		int run = 0;
-		int area = 19;
-		int areaix = -(area / 2);
-		int areaiy = -(area / 2);
-		CommandSender p;
-		World w;
-		//PerlinNoiseGenerator noise;
-
-		RunThread(CommandSender sender, World world) {
-			p = sender;
-			w = world;
-			//noise= worldNoiseGenerators.get(w);
-		}
-
-		@Override
-		public void run() {
-			final int cx = areaix + (run % area);
-			final int cy = areaiy + (run / area);
-
-			try {
-				Chunk c = w.getChunkAt(cx, cy);
-				// clear task
-				clearClouds(c);
-				// generate
-				genClouds(c, false);
-			} catch (Exception ex) {
-				getLogger().log(Level.SEVERE, "Error in Chunk Generator:", ex);
-				p.getServer().getScheduler().cancelTask(runID);
-				runID = -1;
-			}
-			if (++run >= area * area) {
-				p.getServer().getScheduler().cancelTask(runID);
-				runID = -1;
-				p.sendMessage(ChatColor.AQUA + "Done!");
-			}
-		}
-	}
-
-	public static void main(String[] args) {
-
-		SimplexOctaveGenerator noise = new SimplexOctaveGenerator(592724999, 6);
-		noise.setScale(1 / 20.0);
-		final double freq = .1, amp = .1, yMod = 2.1;
-		final double threshold = .6;
-
-//		int run = 4;
+//	int runID = -1;
+//	RunThread run = null;
+//
+//	class RunThread implements Runnable {
+//
+//		int run = 0;
 //		int area = 19;
 //		int areaix = -(area / 2);
-//		int areaiz = -(area / 2);
-//		final int cx = areaix + (run % area);
-//		final int cz = areaiz + (run / area);
+//		int areaiy = -(area / 2);
+//		CommandSender p;
+//		World w;
+//		//PerlinNoiseGenerator noise;
 //
-//		double ix = (cx * 16) + 0.5,
-//				iz = (cz * 16) + 0.5;
+//		RunThread(CommandSender sender, World world) {
+//			p = sender;
+//			w = world;
+//			//noise= worldNoiseGenerators.get(w);
+//		}
+//
+//		@Override
+//		public void run() {
+//			final int cx = areaix + (run % area);
+//			final int cy = areaiy + (run / area);
+//
+//			try {
+//				Chunk c = w.getChunkAt(cx, cy);
+//				// clear task
+//				clearClouds(c);
+//				// generate
+//				genClouds(c, false);
+//			} catch (Exception ex) {
+//				getLogger().log(Level.SEVERE, "Error in Chunk Generator:", ex);
+//				p.getServer().getScheduler().cancelTask(runID);
+//				runID = -1;
+//			}
+//			if (++run >= area * area) {
+//				p.getServer().getScheduler().cancelTask(runID);
+//				runID = -1;
+//				p.sendMessage(ChatColor.AQUA + "Done!");
+//			}
+//		}
+//	}
 
-		double ix = 0, iz = 0;
-		
-		final int maxSpan = 4;
-		final int start = maxSpan * 16, end = (maxSpan * 2 + 1) * 16;
-		
-		long count = 0, startT = System.currentTimeMillis();
-		double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY, total = 0, result;
-
-		double[][] array = new double[end][end];
-		for (int x = 0; x < array.length; ++x) {
-			for (int z = 0; z < array[x].length; ++z) {
-				total += result = array[x][z] = noise.noise(ix + x - start, 0, iz + z - start, freq, amp, true) - threshold;
-				if (result < min) {
-					min = result;
-				}
-				if (result > max) {
-					max = result;
-				}
-				++count;
-			}
-		}
-		printArray(array);
-		
-		long endT = System.currentTimeMillis();
-		System.out.println(count + " in " + String.format("%.2f", (endT - startT) / 1000.) + " seconds " + String.format("(%.2f/second)", count / ((double) endT - startT)));
-		System.out.println("mean: " + (total / count));
-		System.out.println("min: " + min);
-		System.out.println("max: " + max);
-		//System.out.printf("mod: %f\n", ((max) % .1) / .1);
-	}
-
-	static void printArray(double array[][]) {
-		final boolean markChunks = false;
-		for (int x = 0; x < array.length; ++x) {
-			if (markChunks) {
-				if (x > 0 && x % 16 == 0) {
-					for (int z = 0; z < array[x].length; ++z) {
-						if (z > 0 && z % 16 == 0) {
-							System.out.print("|");
-						}
-						if (x < array[x].length / 2) {
-							// lower line
-							System.out.print("\u2581");
-						} else {
-							// upper line
-							System.out.print("\u2594");
-						}
-					}
-					System.out.println();
-				}
-			}
-			for (int z = 0; z < array[x].length; ++z) {
-				if (markChunks && z > 0 && z % 16 == 0) {
-					System.out.print("|");
-				}
-				System.out.print(array[x][z] > 0 ? "\u2588" : "\u2591");
-			}
-			System.out.println();
-		}
-	}
-
-	static void printArray(double array[][], boolean append) {
-		Writer out;
-		try {
-			out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("cloud_out.txt", append), "UTF-8"));
-			try {
-				for (int x = 0; x < array.length; ++x) {
-					if (x > 0 && x % 16 == 0) {
-						for (int z = 0; z < array[x].length; ++z) {
-							if (z > 0 && z % 16 == 0) {
-								//System.out.print("|");
-								out.write("|");
-							}
-							if (x < array[x].length / 2) {
-								// lower line
-								//System.out.print("\u2581");
-								out.write("\u2581");
-							} else {
-								// upper line
-								//System.out.print("\u2594");
-								out.write("\u2594");
-							}
-						}
-						//System.out.println();
-						out.write("\n");
-					}
-					for (int z = 0; z < array[x].length; ++z) {
-						if (z > 0 && z % 16 == 0) {
-							//System.out.print("|");
-							out.write("|");
-						}
-						//System.out.print(array[x][z] > 0 ? "\u2588" : "\u2591");
-						out.write(array[x][z] > 0 ? "\u2588" : "\u2591");
-					}
-					//System.out.println();
-					out.write("\n");
-				}
-			} finally {
-				out.close();
-			}
-		} catch (Exception ex) {
-			Logger.getLogger(Clouds.class.getName()).log(Level.SEVERE, null, ex);
-		}
-
-	}
+//	public static void main(String[] args) {
+//
+//		SimplexOctaveGenerator noise = new SimplexOctaveGenerator(592724999, 6);
+//		noise.setScale(1 / 20.0);
+//		final double freq = .1, amp = .1, yMod = 2.1;
+//		final double threshold = .6;
+//
+////		int run = 4;
+////		int area = 19;
+////		int areaix = -(area / 2);
+////		int areaiz = -(area / 2);
+////		final int cx = areaix + (run % area);
+////		final int cz = areaiz + (run / area);
+////
+////		double ix = (cx * 16) + 0.5,
+////				iz = (cz * 16) + 0.5;
+//
+//		double ix = 0, iz = 0;
+//		
+//		final int maxSpan = 4;
+//		final int start = maxSpan * 16, end = (maxSpan * 2 + 1) * 16;
+//		
+//		long count = 0, startT = System.currentTimeMillis();
+//		double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY, total = 0, result;
+//
+//		double[][] array = new double[end][end];
+//		for (int x = 0; x < array.length; ++x) {
+//			for (int z = 0; z < array[x].length; ++z) {
+//				total += result = array[x][z] = noise.noise(ix + x - start, 0, iz + z - start, freq, amp, true) - threshold;
+//				if (result < min) {
+//					min = result;
+//				}
+//				if (result > max) {
+//					max = result;
+//				}
+//				++count;
+//			}
+//		}
+//		printArray(array);
+//		
+//		long endT = System.currentTimeMillis();
+//		System.out.println(count + " in " + String.format("%.2f", (endT - startT) / 1000.) + " seconds " + String.format("(%.2f/second)", count / ((double) endT - startT)));
+//		System.out.println("mean: " + (total / count));
+//		System.out.println("min: " + min);
+//		System.out.println("max: " + max);
+//		//System.out.printf("mod: %f\n", ((max) % .1) / .1);
+//	}
+//
+//	static void printArray(double array[][]) {
+//		final boolean markChunks = false;
+//		for (int x = 0; x < array.length; ++x) {
+//			if (markChunks) {
+//				if (x > 0 && x % 16 == 0) {
+//					for (int z = 0; z < array[x].length; ++z) {
+//						if (z > 0 && z % 16 == 0) {
+//							System.out.print("|");
+//						}
+//						if (x < array[x].length / 2) {
+//							// lower line
+//							System.out.print("\u2581");
+//						} else {
+//							// upper line
+//							System.out.print("\u2594");
+//						}
+//					}
+//					System.out.println();
+//				}
+//			}
+//			for (int z = 0; z < array[x].length; ++z) {
+//				if (markChunks && z > 0 && z % 16 == 0) {
+//					System.out.print("|");
+//				}
+//				System.out.print(array[x][z] > 0 ? "\u2588" : "\u2591");
+//			}
+//			System.out.println();
+//		}
+//	}
+//
+//	static void printArray(double array[][], boolean append) {
+//		Writer out;
+//		try {
+//			out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("cloud_out.txt", append), "UTF-8"));
+//			try {
+//				for (int x = 0; x < array.length; ++x) {
+//					if (x > 0 && x % 16 == 0) {
+//						for (int z = 0; z < array[x].length; ++z) {
+//							if (z > 0 && z % 16 == 0) {
+//								//System.out.print("|");
+//								out.write("|");
+//							}
+//							if (x < array[x].length / 2) {
+//								// lower line
+//								//System.out.print("\u2581");
+//								out.write("\u2581");
+//							} else {
+//								// upper line
+//								//System.out.print("\u2594");
+//								out.write("\u2594");
+//							}
+//						}
+//						//System.out.println();
+//						out.write("\n");
+//					}
+//					for (int z = 0; z < array[x].length; ++z) {
+//						if (z > 0 && z % 16 == 0) {
+//							//System.out.print("|");
+//							out.write("|");
+//						}
+//						//System.out.print(array[x][z] > 0 ? "\u2588" : "\u2591");
+//						out.write(array[x][z] > 0 ? "\u2588" : "\u2591");
+//					}
+//					//System.out.println();
+//					out.write("\n");
+//				}
+//			} finally {
+//				out.close();
+//			}
+//		} catch (Exception ex) {
+//			Logger.getLogger(Clouds.class.getName()).log(Level.SEVERE, null, ex);
+//		}
+//
+//	}
 
 	void clearClouds(Chunk c) {
 		for (int x = 0; x < 16; ++x) {
