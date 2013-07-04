@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Stack;
 import java.util.logging.Level;
-import java.util.logging.Logger;
+import me.jascotty2.libv2.io.CheckInput;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
@@ -151,28 +151,34 @@ public class Clouds extends JavaPlugin implements Listener {
 	@Override
 	public boolean onCommand(CommandSender sender, Command command,
 			String commandLabel, String[] args) {
-		if (args.length == 1 && (args[0].equalsIgnoreCase("generate") || args[0].equalsIgnoreCase("gen"))) {
+		if (args.length >= 1 && (args[0].equalsIgnoreCase("generate") || args[0].equalsIgnoreCase("gen"))) {
 			if (!(sender instanceof Player)) {
 				sender.sendMessage("Must be a player to use this command");
 				return true;
 			}
-			// for now, only in the present chunk
-			// clear existing clouds here
-			clearClouds(((Player) sender).getLocation().getChunk());
-			// regenerate chunk
-			genClouds(((Player) sender).getLocation().getChunk(), true);
-			sender.sendMessage(ChatColor.AQUA + "Clouds Regenerated!");
-//			if (runID != -1) {
-//				sender.sendMessage("Still Busy!");
-//				sender.sendMessage("On Run " + run.run + " of " + (run.area * run.area));
-//				return true;
-//			} else if (sender instanceof Player) {
-//				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, ((Player) sender).getLocation().getWorld()), 1, 1);
-//			} else {
-//				World w = getServer().getWorld("NewEarth2013");
-//				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, w), 1, 1);
-//			}
-//			sender.sendMessage(ChatColor.AQUA + "Starting!");
+			int radius = 1;
+			if(args.length > 2 || (args.length == 2 && (radius = CheckInput.GetInt(args[1], 0)) <= 0)) {
+				sender.sendMessage(ChatColor.RED + "Invalid argument");
+				return false;
+			}
+			if(radius == 1) {
+				// clear existing clouds here
+				clearClouds(((Player) sender).getLocation().getChunk());
+				// regenerate chunk
+				genClouds(((Player) sender).getLocation().getChunk(), true);
+				sender.sendMessage(ChatColor.AQUA + "Clouds Regenerated!");
+			} else {
+				if (runID != -1) {
+					sender.sendMessage("Still Busy!");
+					sender.sendMessage("On Run " + run.run + " of " + (run.area * run.area));
+					return true;
+				} else {
+				// start regenerating
+					runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, ((Player) sender).getLocation().getWorld(), radius), 1, 1);
+					sender.sendMessage(ChatColor.AQUA + "Starting!");
+				}
+			}
+			
 		} else if (args.length == 1 && (args[0].equalsIgnoreCase("reload"))) {
 			load();
 			sender.sendMessage(ChatColor.AQUA + "Generator Settings Reloaded!");
@@ -196,48 +202,58 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 	}
 
-//	int runID = -1;
-//	RunThread run = null;
-//
-//	class RunThread implements Runnable {
-//
-//		int run = 0;
-//		int area = 19;
-//		int areaix = -(area / 2);
-//		int areaiy = -(area / 2);
-//		CommandSender p;
-//		World w;
-//		//PerlinNoiseGenerator noise;
-//
-//		RunThread(CommandSender sender, World world) {
-//			p = sender;
-//			w = world;
-//			//noise= worldNoiseGenerators.get(w);
-//		}
-//
-//		@Override
-//		public void run() {
-//			final int cx = areaix + (run % area);
-//			final int cy = areaiy + (run / area);
-//
-//			try {
-//				Chunk c = w.getChunkAt(cx, cy);
-//				// clear task
-//				clearClouds(c);
-//				// generate
-//				genClouds(c, false);
-//			} catch (Exception ex) {
-//				getLogger().log(Level.SEVERE, "Error in Chunk Generator:", ex);
-//				p.getServer().getScheduler().cancelTask(runID);
-//				runID = -1;
-//			}
-//			if (++run >= area * area) {
-//				p.getServer().getScheduler().cancelTask(runID);
-//				runID = -1;
-//				p.sendMessage(ChatColor.AQUA + "Done!");
-//			}
-//		}
-//	}
+	int runID = -1;
+	RunThread run = null;
+
+	class RunThread implements Runnable {
+
+		int run = 0;
+		private int area = 19;
+		private int areaix = -(area / 2);
+		private int areaiy = -(area / 2);
+		CommandSender p;
+		World w;
+		//PerlinNoiseGenerator noise;
+
+		RunThread(CommandSender sender, World world) {
+			p = sender;
+			w = world;
+			//noise= worldNoiseGenerators.get(w);
+		}
+
+		RunThread(CommandSender sender, World world, int radius) {
+			p = sender;
+			w = world;
+			//noise= worldNoiseGenerators.get(w);
+			area = (radius * 2) + 1;
+			areaix = -(area / 2);
+			areaiy = -(area / 2);
+		}
+		
+		@Override
+		public void run() {
+			final int cx = areaix + (run % area);
+			final int cy = areaiy + (run / area);
+
+			try {
+				Chunk c = w.getChunkAt(cx, cy);
+				// clear task
+				clearClouds(c);
+				// generate
+				genClouds(c, false);
+			} catch (Exception ex) {
+				getLogger().log(Level.SEVERE, "Error in Chunk Generator:", ex);
+				p.sendMessage(ChatColor.RED + "Error in Cloud Chunk Generator (Check log for details)");
+				p.getServer().getScheduler().cancelTask(runID);
+				runID = -1;
+			}
+			if (++run >= area * area) {
+				p.getServer().getScheduler().cancelTask(runID);
+				runID = -1;
+				p.sendMessage(ChatColor.AQUA + "Done!");
+			}
+		}
+	}
 //	public static void main(String[] args) {
 //
 //		SimplexOctaveGenerator noise = new SimplexOctaveGenerator(592724999, 6);
@@ -562,8 +578,27 @@ public class Clouds extends JavaPlugin implements Listener {
 		if (b != null
 				&& b.getType() == Material.SNOW_BLOCK
 				&& b.getY() >= cloudFloor
-				&& event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.NATURAL) {
+				&& event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
 			event.setCancelled(true);
 		}
 	}
+	
+//	@EventHandler
+//	void testHorseSpawn(org.bukkit.event.player.PlayerInteractEvent event) {
+//		if(event.getAction() == Action.RIGHT_CLICK_BLOCK 
+//				&& event.getClickedBlock().getTypeId() == 2
+//				&& event.getPlayer().getItemInHand().getTypeId() == 0) {
+//			
+//			org.bukkit.Location l = event.getClickedBlock().getLocation();
+//			org.bukkit.craftbukkit.v1_6_R1.CraftWorld w = (org.bukkit.craftbukkit.v1_6_R1.CraftWorld) event.getPlayer().getWorld();
+//			net.minecraft.server.v1_6_R1.EntityHorse h = new net.minecraft.server.v1_6_R1.EntityHorse(w.getHandle());
+//			h.setLocation(l.getX(), l.getY() + 1, l.getZ(), l.getYaw(), l.getPitch());
+//			h.p(0);
+//			h.q(0);
+//			
+//			w.getHandle().addEntity(h);
+//
+//		}
+//	}
+	
 }
