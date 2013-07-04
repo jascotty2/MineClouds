@@ -52,6 +52,7 @@ import org.bukkit.util.noise.SimplexOctaveGenerator;
 public class Clouds extends JavaPlugin implements Listener {
 
 	int minCloudHeight = 6;
+	int maxCloudDepth = 3;
 	int cloudFloor = 80;
 	int cloudCeiling = 200;
 	int ground[] = new int[]{1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16, 48, 49, 79, 82, 110};
@@ -60,7 +61,7 @@ public class Clouds extends JavaPlugin implements Listener {
 	int noiseOctaves = 6;
 	double noisefreq = 0.4, noiseamp = .3, yScale = 2.1;
 	double noisethreshold = .6;
-	int min_cloud_size = 5;
+	int min_cloud_size = 5, max_cloud_size = -1;
 	int block_id = 80, block_data = 0;
 
 	@Override
@@ -86,22 +87,65 @@ public class Clouds extends JavaPlugin implements Listener {
 		saveDefaultConfig();
 		reloadConfig();
 		
-		minCloudHeight = getConfig().getInt("minCloudHeight");
-		cloudFloor = getConfig().getInt("cloudFloor");
-		cloudCeiling = getConfig().getInt("cloudCeiling");
-		noiseScale = getConfig().getDouble("noiseScale");
-		noiseOctaves = getConfig().getInt("noiseOctaves");
+		minCloudHeight = configAssertInt("minCloudHeight", 0, 200);
+		maxCloudDepth = configAssertInt("maxCloudDepth", 1, 100);
+		cloudFloor = configAssertInt("cloudFloor", 0, 200);
+		cloudCeiling = configAssertInt("cloudCeiling", 5, 255);
+		noiseScale = configAssertDouble("noiseScale", 0.0000001, 999);
+		noiseOctaves = configAssertInt("noiseOctaves", 1, 50);
 		noisefreq = getConfig().getDouble("noisefreq");
 		noiseamp = getConfig().getDouble("noiseamp");
 		yScale = getConfig().getDouble("yScale");
 		noisethreshold = getConfig().getDouble("noisethreshold");
-		min_cloud_size = getConfig().getInt("min_cloud_size");
+		min_cloud_size = configAssertInt("min_cloud_size", 0, 5000);
 		block_id = getConfig().getInt("block_id");
-		block_data = getConfig().getInt("block_data");
+		block_data = configAssertInt("block_data", 0, 16);
+		max_cloud_size = configAssertInt("max_cloud_size", -1, -1);
+		
+		// validate data
+		if(noisefreq == 0) {
+			getConfig().set("noisefreq", noisefreq = 1);
+		}
+		if(noiseamp == 0) {
+			getConfig().set("noiseamp", noiseamp = 1);
+		}
+		if(cloudCeiling < cloudFloor) {
+			if(cloudFloor > 250) {
+				getConfig().set("cloudFloor", cloudFloor = (cloudFloor - 10));
+			}
+			getConfig().set("cloudCeiling", cloudCeiling = cloudFloor + 10);
+		}
+		if(Material.getMaterial(block_id) == null) {
+			getConfig().set("block_id", block_id = 80);
+		}
 		
 		saveConfig();
 	}
+	
+	int configAssertInt(String key, int lowerBound, int upperBound) {
+		int value = getConfig().getInt(key);
+		if(value < lowerBound) {
+			getConfig().set(key, lowerBound);
+			return lowerBound;
+		} else if(upperBound > lowerBound && value > upperBound) {
+			getConfig().set(key, upperBound);
+			return upperBound;
+		}
+		return value;
+	}
 
+	double configAssertDouble(String key, double lowerBound, double upperBound) {
+		double value = getConfig().getDouble(key);
+		if(value < lowerBound) {
+			getConfig().set(key, lowerBound);
+			return lowerBound;
+		} else if(upperBound > lowerBound && value > upperBound) {
+			getConfig().set(key, upperBound);
+			return upperBound;
+		}
+		return value;
+	}
+	
 	@Override
 	public boolean onCommand(CommandSender sender, Command command,
 			String commandLabel, String[] args) {
@@ -196,7 +240,7 @@ public class Clouds extends JavaPlugin implements Listener {
 //
 //		SimplexOctaveGenerator noise = new SimplexOctaveGenerator(592724999, 6);
 //		noise.setScale(1 / 20.0);
-//		final double freq = .1, amp = .1, yMod = 2.1;
+//		final double freq = .4, amp = .3, yMod = 2.1;
 //		final double threshold = .6;
 //
 ////		int run = 4;
@@ -364,7 +408,7 @@ public class Clouds extends JavaPlugin implements Listener {
 		double[][][] cloudchunk = new double[16][3][16];
 		boolean cloud = false;
 		for (int x = 0; x < 16; ++x) {
-			for (int y = 0; y < 3; ++y) {
+			for (int y = 0; y < maxCloudDepth; ++y) {
 				for (int z = 0; z < 16; ++z) {
 					cloudchunk[x][y][z] = (noise.noise(ix + x, y * yScale, iz + z, noisefreq, noiseamp, true)) - noisethreshold;
 					if (cloudchunk[x][y][z] > 0) {
@@ -411,11 +455,11 @@ public class Clouds extends JavaPlugin implements Listener {
 		int count;
 		for (int x = 0; x < 16; ++x) {
 			int y = 0;
-			//for (; y < 3; ++y) {
+			//for (; y < maxCloudDepth; ++y) {
 			for (int z = 0; z < 16; ++z) {
 				if (cloudchunk[x][y][z] > 0) {
 					for (int x2 = 0; x2 < 16; ++x2) {
-						for (int y2 = 0; y2 < 3; ++y2) {
+						for (int y2 = 0; y2 < maxCloudDepth; ++y2) {
 							for (int z2 = 0; z2 < 16; ++z2) {
 								tempCloud[x2][y2][z2] = 0;
 							}
@@ -433,7 +477,7 @@ public class Clouds extends JavaPlugin implements Listener {
 						if (false // spacer, for formatting, lol
 								|| ((x2 = current.x + 1) < start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
 								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z + 1) < start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y + 1) < 3 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y + 1) < maxCloudDepth && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
 								|| ((x2 = current.x - 1) >= -start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
 								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z - 1) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
 								|| ((x2 = current.x) >= -start && (y2 = current.y - 1) >= 0 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
@@ -454,17 +498,17 @@ public class Clouds extends JavaPlugin implements Listener {
 							current = null;
 						}
 					}
-					if (count >= min_cloud_size) {
+					if (count >= min_cloud_size && (max_cloud_size <= 0 || count <= max_cloud_size)) {
 						// now have the cloud
 						total /= count;
 						// total is now a value 0 < x < freq - threshold
-						int height = cloudFloor + (int) Math.round((cloudCeiling - cloudFloor - 2) * ((total % .05) / .05));
+						int height = cloudFloor + (int) Math.round((cloudCeiling - cloudFloor - (maxCloudDepth - 1)) * ((total % .05) / .05));
 						int groundHeight = 0;
 
 						// don't generate the cloud if it collides with something
 						boolean collision = false;
 						for (int x2 = 0; x2 < 16 && !collision; ++x2) {
-							for (int y2 = 0; y2 < 3 && !collision; ++y2) {
+							for (int y2 = 0; y2 < maxCloudDepth && !collision; ++y2) {
 								for (int z2 = 0; z2 < 16 && !collision; ++z2) {
 									if (tempCloud[x2][y2][z2] > 0) {
 										if (landHeight[x2][z2] - y > groundHeight) {
@@ -480,7 +524,7 @@ public class Clouds extends JavaPlugin implements Listener {
 						//minCloudHeight
 						if (!collision && height - groundHeight >= minCloudHeight) {
 							for (int x2 = 0; x2 < 16; ++x2) {
-								for (int y2 = 0; y2 < 3; ++y2) {
+								for (int y2 = 0; y2 < maxCloudDepth; ++y2) {
 									for (int z2 = 0; z2 < 16; ++z2) {
 										if (tempCloud[x2][y2][z2] > 0) {
 											c.getBlock(x2, height + y2, z2).setTypeIdAndData(block_id, (byte) block_data, false);

@@ -1,4 +1,5 @@
 minCloudHeight: 6
+maxCloudDepth: 3
 cloudFloor: 80
 cloudCeiling: 200
 noiseScale: 0.05263157894736842105263157894737
@@ -8,5 +9,6 @@ noiseamp: .3
 yScale: 2.1
 noisethreshold: .6
 min_cloud_size: 5
+max_cloud_size: -1
 block_id: 80
 block_data: 0
