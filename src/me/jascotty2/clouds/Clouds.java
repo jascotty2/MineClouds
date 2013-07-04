@@ -1,7 +1,27 @@
+/**
+ * Copyright (C) 2012 Jacob Scott <jascottytechie@gmail.com>
+ *
+ * Description: Cloud Generator for Bukkit
+ *
+ * This program is free software: you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 package me.jascotty2.clouds;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.HashMap;
@@ -34,7 +54,6 @@ public class Clouds extends JavaPlugin implements Listener {
 	int minCloudHeight = 6;
 	int cloudFloor = 80;
 	int cloudCeiling = 200;
-	int cloudsPerChunk = 3;
 	int ground[] = new int[]{1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16, 48, 49, 79, 82, 110};
 	Map<World, SimplexOctaveGenerator> worldNoiseGenerators = new HashMap<World, SimplexOctaveGenerator>();
 	double noiseScale = 1 / 19.0;
@@ -42,6 +61,7 @@ public class Clouds extends JavaPlugin implements Listener {
 	double noisefreq = 0.4, noiseamp = .3, yScale = 2.1;
 	double noisethreshold = .6;
 	int min_cloud_size = 5;
+	int block_id = 80, block_data = 0;
 
 	@Override
 	public void onEnable() {
@@ -52,7 +72,34 @@ public class Clouds extends JavaPlugin implements Listener {
 				worldNoiseGenerators.put(w, noise);
 			}
 		}
+		load();
 		getServer().getPluginManager().registerEvents(this, this);
+		try {
+			Metrics metrics = new Metrics(this);
+			metrics.start();
+		} catch (IOException e) {
+			// Failed to submit the stats :-(
+		}
+	}
+
+	void load() {
+		saveDefaultConfig();
+		reloadConfig();
+		
+		minCloudHeight = getConfig().getInt("minCloudHeight");
+		cloudFloor = getConfig().getInt("cloudFloor");
+		cloudCeiling = getConfig().getInt("cloudCeiling");
+		noiseScale = getConfig().getDouble("noiseScale");
+		noiseOctaves = getConfig().getInt("noiseOctaves");
+		noisefreq = getConfig().getDouble("noisefreq");
+		noiseamp = getConfig().getDouble("noiseamp");
+		yScale = getConfig().getDouble("yScale");
+		noisethreshold = getConfig().getDouble("noisethreshold");
+		min_cloud_size = getConfig().getInt("min_cloud_size");
+		block_id = getConfig().getInt("block_id");
+		block_data = getConfig().getInt("block_data");
+		
+		saveConfig();
 	}
 
 	@Override
@@ -80,6 +127,9 @@ public class Clouds extends JavaPlugin implements Listener {
 //				runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, w), 1, 1);
 //			}
 //			sender.sendMessage(ChatColor.AQUA + "Starting!");
+		} else if (args.length == 1 && (args[0].equalsIgnoreCase("reload"))) {
+			load();
+			sender.sendMessage(ChatColor.AQUA + "Generator Settings Reloaded!");
 		} else {
 			return false;
 		}
@@ -433,7 +483,7 @@ public class Clouds extends JavaPlugin implements Listener {
 								for (int y2 = 0; y2 < 3; ++y2) {
 									for (int z2 = 0; z2 < 16; ++z2) {
 										if (tempCloud[x2][y2][z2] > 0) {
-											c.getBlock(x2, height + y2, z2).setTypeId(80);
+											c.getBlock(x2, height + y2, z2).setTypeIdAndData(block_id, (byte) block_data, false);
 										}
 									}
 								}
