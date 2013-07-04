@@ -66,13 +66,6 @@ public class Clouds extends JavaPlugin implements Listener {
 
 	@Override
 	public void onEnable() {
-		for (World w : getServer().getWorlds()) {
-			if (w.getEnvironment() == Environment.NORMAL) {
-				SimplexOctaveGenerator noise = new SimplexOctaveGenerator(w.getSeed(), noiseOctaves);
-				noise.setScale(noiseScale);
-				worldNoiseGenerators.put(w, noise);
-			}
-		}
 		load();
 		getServer().getPluginManager().registerEvents(this, this);
 		try {
@@ -117,6 +110,15 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 		if(Material.getMaterial(block_id) == null) {
 			getConfig().set("block_id", block_id = 80);
+		}
+		
+		worldNoiseGenerators.clear();
+		for (World w : getServer().getWorlds()) {
+			if (w.getEnvironment() == Environment.NORMAL) {
+				SimplexOctaveGenerator noise = new SimplexOctaveGenerator(w.getSeed(), noiseOctaves);
+				noise.setScale(noiseScale);
+				worldNoiseGenerators.put(w, noise);
+			}
 		}
 		
 		saveConfig();
