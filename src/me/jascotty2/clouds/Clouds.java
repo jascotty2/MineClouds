@@ -240,7 +240,7 @@ public class Clouds extends JavaPlugin implements Listener {
 				// clear task
 				clearClouds(c);
 				// generate
-				genClouds(c, false);
+				genClouds(c, true);
 			} catch (Exception ex) {
 				getLogger().log(Level.SEVERE, "Error in Chunk Generator:", ex);
 				p.sendMessage(ChatColor.RED + "Error in Cloud Chunk Generator (Check log for details)");
