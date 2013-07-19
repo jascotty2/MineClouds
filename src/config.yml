@@ -1,3 +1,5 @@
+globalEnabled: true
+enabledWorlds: world,another_world
 minCloudHeight: 6
 maxCloudDepth: 3
 cloudFloor: 80

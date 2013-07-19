@@ -32,6 +32,7 @@ import java.util.logging.Level;
 import me.jascotty2.libv2.io.CheckInput;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
@@ -63,6 +64,8 @@ public class Clouds extends JavaPlugin implements Listener {
 	double noisethreshold = .6;
 	int min_cloud_size = 5, max_cloud_size = -1;
 	int block_id = 80, block_data = 0;
+	boolean global_enabled = true;
+	String[] enabled_worlds = new String[0];
 
 	@Override
 	public void onEnable() {
@@ -80,6 +83,9 @@ public class Clouds extends JavaPlugin implements Listener {
 		saveDefaultConfig();
 		reloadConfig();
 		
+		global_enabled = getConfig().getBoolean("globalEnabled", global_enabled);
+		enabled_worlds = getConfig().getString("enabledWorlds", "").split(",");
+	
 		minCloudHeight = configAssertInt("minCloudHeight", 0, 200);
 		maxCloudDepth = configAssertInt("maxCloudDepth", 1, 100);
 		cloudFloor = configAssertInt("cloudFloor", 0, 200);
@@ -151,7 +157,8 @@ public class Clouds extends JavaPlugin implements Listener {
 	@Override
 	public boolean onCommand(CommandSender sender, Command command,
 			String commandLabel, String[] args) {
-		if (args.length >= 1 && (args[0].equalsIgnoreCase("generate") || args[0].equalsIgnoreCase("gen"))) {
+		boolean clear = args.length >= 1 && (args[0].equalsIgnoreCase("clear") || args[0].equalsIgnoreCase("remove"));
+		if (clear || (args.length >= 1 && (args[0].equalsIgnoreCase("generate") || args[0].equalsIgnoreCase("gen")))) {
 			if (!(sender instanceof Player)) {
 				sender.sendMessage("Must be a player to use this command");
 				return true;
@@ -164,17 +171,24 @@ public class Clouds extends JavaPlugin implements Listener {
 			if(radius == 1) {
 				// clear existing clouds here
 				clearClouds(((Player) sender).getLocation().getChunk());
-				// regenerate chunk
-				genClouds(((Player) sender).getLocation().getChunk(), true);
-				sender.sendMessage(ChatColor.AQUA + "Clouds Regenerated!");
+				if(clear) {
+					sender.sendMessage(ChatColor.AQUA + "Clouds Removed!");
+				} else {// regenerate chunk
+					genClouds(((Player) sender).getLocation().getChunk(), true);
+					sender.sendMessage(ChatColor.AQUA + "Clouds Regenerated!");
+				}
 			} else {
 				if (runID != -1) {
 					sender.sendMessage("Still Busy!");
 					sender.sendMessage("On Run " + run.run + " of " + (run.area * run.area));
 					return true;
 				} else {
-				// start regenerating
-					runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run = new RunThread(sender, ((Player) sender).getLocation().getWorld(), radius), 1, 1);
+					run = new RunThread(sender, ((Player) sender).getLocation().getWorld(), radius);
+					if(clear) {
+						run.gen = false;
+					}
+					// start thread
+					runID = getServer().getScheduler().scheduleSyncRepeatingTask(this, run, 1, 1);
 					sender.sendMessage(ChatColor.AQUA + "Starting!");
 				}
 			}
@@ -210,7 +224,8 @@ public class Clouds extends JavaPlugin implements Listener {
 		int run = 0;
 		private int area = 19;
 		private int areaix = -(area / 2);
-		private int areaiy = -(area / 2);
+		private int areaiz = -(area / 2);
+		boolean gen = true;
 		CommandSender p;
 		World w;
 		//PerlinNoiseGenerator noise;
@@ -227,20 +242,27 @@ public class Clouds extends JavaPlugin implements Listener {
 			//noise= worldNoiseGenerators.get(w);
 			area = (radius * 2) + 1;
 			areaix = -(area / 2);
-			areaiy = -(area / 2);
+			areaiz = -(area / 2);
+			if(sender instanceof Player) {
+				final Chunk il = ((Player) sender).getLocation().getChunk();
+				areaix += il.getX();
+				areaiz  += il.getZ();
+			}
 		}
 		
 		@Override
 		public void run() {
 			final int cx = areaix + (run % area);
-			final int cy = areaiy + (run / area);
+			final int cz = areaiz + (run / area);
 
 			try {
-				Chunk c = w.getChunkAt(cx, cy);
+				Chunk c = w.getChunkAt(cx, cz);
 				// clear task
 				clearClouds(c);
-				// generate
-				genClouds(c, true);
+				if(gen) {
+					// generate
+					genClouds(c, true);
+				}
 			} catch (Exception ex) {
 				getLogger().log(Level.SEVERE, "Error in Chunk Generator:", ex);
 				p.sendMessage(ChatColor.RED + "Error in Cloud Chunk Generator (Check log for details)");
@@ -380,8 +402,9 @@ public class Clouds extends JavaPlugin implements Listener {
 		for (int x = 0; x < 16; ++x) {
 			for (int y = cloudFloor; y <= cloudCeiling; ++y) {
 				for (int z = 0; z < 16; ++z) {
-					if (c.getBlock(x, y, z).getTypeId() == 80) {
-						c.getBlock(x, y, z).setTypeId(0);
+					final Block b = c.getBlock(x, y, z);
+					if (b.getTypeId() == block_id && b.getData() == block_data) {
+						b.setTypeId(0);
 					}
 				}
 			}
@@ -404,6 +427,20 @@ public class Clouds extends JavaPlugin implements Listener {
 					}
 				}
 				if (ignore) {
+					return;
+				}
+			}
+			// check if allowed on this world
+			if(!global_enabled) {
+				boolean allow = false;
+				final String name = c.getWorld().getName();
+				for(String w : enabled_worlds) {
+					if(w != null && name.equalsIgnoreCase(w)) {
+						allow = true;
+						break;
+					}
+				}
+				if(!allow) {
 					return;
 				}
 			}
@@ -445,7 +482,7 @@ public class Clouds extends JavaPlugin implements Listener {
 			for (int z = 0; z < 16; ++z) {
 				for (int y = 255; y > 0; --y) {
 					final Block b = c.getBlock(x, y, z);
-					if (!b.isEmpty() && b.getType() != Material.SNOW_BLOCK) {
+					if (!b.isEmpty() && !(b.getTypeId() == block_id && b.getData() == block_data)) {
 						boolean isground = false;
 						for (int i = 0; i < ground.length && !isground; ++i) {
 							if (ground[i] == b.getTypeId()) {
@@ -576,7 +613,7 @@ public class Clouds extends JavaPlugin implements Listener {
 			b = b.getRelative(BlockFace.DOWN);
 		}
 		if (b != null
-				&& b.getType() == Material.SNOW_BLOCK
+				&& b.getTypeId() == block_id
 				&& b.getY() >= cloudFloor
 				&& event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
 			event.setCancelled(true);
