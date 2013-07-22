@@ -42,8 +42,11 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
@@ -64,7 +67,7 @@ public class Clouds extends JavaPlugin implements Listener {
 	double noisethreshold = .6;
 	int min_cloud_size = 5, max_cloud_size = -1;
 	int block_id = 80, block_data = 0;
-	boolean global_enabled = true;
+	boolean global_enabled = true, softClouds = false;
 	String[] enabled_worlds = new String[0];
 
 	@Override
@@ -85,6 +88,11 @@ public class Clouds extends JavaPlugin implements Listener {
 		
 		global_enabled = getConfig().getBoolean("globalEnabled", global_enabled);
 		enabled_worlds = getConfig().getString("enabledWorlds", "").split(",");
+		for(int i = 0; i < enabled_worlds.length; ++i) {
+			enabled_worlds[i] = enabled_worlds[i].trim();
+		}
+		
+		softClouds =  getConfig().getBoolean("softClouds", softClouds);
 	
 		minCloudHeight = configAssertInt("minCloudHeight", 0, 200);
 		maxCloudDepth = configAssertInt("maxCloudDepth", 1, 100);
@@ -620,6 +628,25 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 	}
 	
+	@EventHandler(priority = EventPriority.LOW)
+	void onCloudFall(EntityDamageEvent event) {
+		if(softClouds && event.getCause() == DamageCause.FALL) {
+			Block landing = getBlockBelow(event.getEntity().getLocation());
+			if(landing.getY() > cloudFloor && landing.getY() < cloudCeiling 
+					&& landing.getTypeId() == block_id
+					&& landing.getData() == block_data) {
+				event.setCancelled(true);
+			} 
+		}
+	}
+	
+	Block getBlockBelow(Location l) {
+		Block b = l.getBlock();
+		while(b.getY() > 0 && b.isEmpty()) {
+			b = b.getRelative(BlockFace.DOWN);
+		}
+		return b;
+	}
 //	@EventHandler
 //	void testHorseSpawn(org.bukkit.event.player.PlayerInteractEvent event) {
 //		if(event.getAction() == Action.RIGHT_CLICK_BLOCK 

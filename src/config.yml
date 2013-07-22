@@ -1,5 +1,6 @@
 globalEnabled: true
 enabledWorlds: world,another_world
+softClouds: false
 minCloudHeight: 6
 maxCloudDepth: 3
 cloudFloor: 80
