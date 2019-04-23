@@ -18,12 +18,13 @@
  */
 package me.jascotty2.clouds;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
+//import java.io.BufferedWriter;
+//import java.io.File;
+//import java.io.FileOutputStream;
+//import java.io.OutputStreamWriter;
+//import java.io.Writer;
+
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,7 @@ public class Clouds extends JavaPlugin implements Listener {
 	int cloudFloor = 80;
 	int cloudCeiling = 200;
 	int ground[] = new int[]{1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16, 48, 49, 79, 82, 110};
-	Map<World, SimplexOctaveGenerator> worldNoiseGenerators = new HashMap<World, SimplexOctaveGenerator>();
+	Map<World, SimplexOctaveGenerator> worldNoiseGenerators = new HashMap<>();
 	double noiseScale = 1 / 19.0;
 	int noiseOctaves = 6;
 	double noisefreq = 0.4, noiseamp = .3, yScale = 2.1;
@@ -75,7 +76,8 @@ public class Clouds extends JavaPlugin implements Listener {
 		load();
 		getServer().getPluginManager().registerEvents(this, this);
 		try {
-			Metrics metrics = new Metrics(this);
+			// Metrics :)
+			MetricsLite metrics = new MetricsLite(this);
 			metrics.start();
 		} catch (IOException e) {
 			// Failed to submit the stats :-(
@@ -127,13 +129,13 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 		
 		worldNoiseGenerators.clear();
-		for (World w : getServer().getWorlds()) {
-			if (w.getEnvironment() == Environment.NORMAL) {
-				SimplexOctaveGenerator noise = new SimplexOctaveGenerator(w.getSeed(), noiseOctaves);
-				noise.setScale(noiseScale);
-				worldNoiseGenerators.put(w, noise);
-			}
-		}
+		getServer().getWorlds().stream()
+				.filter((w) -> (w.getEnvironment() == Environment.NORMAL))
+				.forEachOrdered((w) -> {
+			SimplexOctaveGenerator noise = new SimplexOctaveGenerator(w.getSeed(), noiseOctaves);
+			noise.setScale(noiseScale);
+			worldNoiseGenerators.put(w, noise);
+		});
 		
 		saveConfig();
 	}
@@ -284,22 +286,13 @@ public class Clouds extends JavaPlugin implements Listener {
 			}
 		}
 	}
+	
 //	public static void main(String[] args) {
 //
 //		SimplexOctaveGenerator noise = new SimplexOctaveGenerator(592724999, 6);
 //		noise.setScale(1 / 20.0);
 //		final double freq = .4, amp = .3, yMod = 2.1;
 //		final double threshold = .6;
-//
-////		int run = 4;
-////		int area = 19;
-////		int areaix = -(area / 2);
-////		int areaiz = -(area / 2);
-////		final int cx = areaix + (run % area);
-////		final int cz = areaiz + (run / area);
-////
-////		double ix = (cx * 16) + 0.5,
-////				iz = (cz * 16) + 0.5;
 //
 //		double ix = 0, iz = 0;
 //		
@@ -329,7 +322,6 @@ public class Clouds extends JavaPlugin implements Listener {
 //		System.out.println("mean: " + (total / count));
 //		System.out.println("min: " + min);
 //		System.out.println("max: " + max);
-//		//System.out.printf("mod: %f\n", ((max) % .1) / .1);
 //	}
 //
 //	static void printArray(double array[][]) {
@@ -371,41 +363,34 @@ public class Clouds extends JavaPlugin implements Listener {
 //					if (x > 0 && x % 16 == 0) {
 //						for (int z = 0; z < array[x].length; ++z) {
 //							if (z > 0 && z % 16 == 0) {
-//								//System.out.print("|");
 //								out.write("|");
 //							}
 //							if (x < array[x].length / 2) {
 //								// lower line
-//								//System.out.print("\u2581");
 //								out.write("\u2581");
 //							} else {
 //								// upper line
-//								//System.out.print("\u2594");
 //								out.write("\u2594");
 //							}
 //						}
-//						//System.out.println();
 //						out.write("\n");
 //					}
 //					for (int z = 0; z < array[x].length; ++z) {
 //						if (z > 0 && z % 16 == 0) {
-//							//System.out.print("|");
 //							out.write("|");
 //						}
-//						//System.out.print(array[x][z] > 0 ? "\u2588" : "\u2591");
 //						out.write(array[x][z] > 0 ? "\u2588" : "\u2591");
 //					}
-//					//System.out.println();
 //					out.write("\n");
 //				}
 //			} finally {
 //				out.close();
 //			}
 //		} catch (Exception ex) {
-//			Logger.getLogger(Clouds.class.getName()).log(Level.SEVERE, null, ex);
+////			Logger.getLogger(Clouds.class.getName()).log(Level.SEVERE, null, ex);
 //		}
-//
 //	}
+	
 	void clearClouds(Chunk c) {
 		for (int x = 0; x < 16; ++x) {
 			for (int y = cloudFloor; y <= cloudCeiling; ++y) {
@@ -468,7 +453,7 @@ public class Clouds extends JavaPlugin implements Listener {
 		// then add top 2 layers (adding next layer if prior exists)
 		// additionally - calculate all 3 layers before determining base height
 
-		double[][][] cloudchunk = new double[16][3][16];
+		double[][][] cloudchunk = new double[16][maxCloudDepth][16];
 		boolean cloud = false;
 		for (int x = 0; x < 16; ++x) {
 			for (int y = 0; y < maxCloudDepth; ++y) {
@@ -509,11 +494,11 @@ public class Clouds extends JavaPlugin implements Listener {
 		// ready space for 5 chunks on each side
 		final int maxSpan = 5;
 		final int start = maxSpan * 16, end = (maxSpan * 2 + 1) * 16;
-		double[][][] cloudCache = new double[end][3][end];
+		double[][][] cloudCache = new double[end][maxCloudDepth][end];
 
 		// find & seperate the clouds
 		Stack<Point3D> path = new Stack<Point3D>();
-		double[][][] tempCloud = new double[16][3][16];
+		double[][][] tempCloud = new double[16][maxCloudDepth][16];
 		double total;
 		int count;
 		for (int x = 0; x < 16; ++x) {
@@ -536,14 +521,34 @@ public class Clouds extends JavaPlugin implements Listener {
 					while (current != null) {
 						int x2, y2, z2;
 						double v;
-
+						/*
+						if(current.x + 1 < start && current.y >= 0 && current.z >= -start) {
+							
+						}
+						
+						cloudCache[start + x2][y2][start + z2] = noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold;
+						
+						if () {*/
+						//*
 						if (false // spacer, for formatting, lol
-								|| ((x2 = current.x + 1) < start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z + 1) < start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y + 1) < maxCloudDepth && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x - 1) >= -start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z - 1) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y - 1) >= 0 && (z2 = current.z) >= -start && (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2] : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x + 1) < start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && 
+									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+									: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z + 1) < start && 
+									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+									: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y + 1) < maxCloudDepth && (z2 = current.z) >= -start && 
+									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x - 1) >= -start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && 
+									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z - 1) >= -start && 
+									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y - 1) >= 0 && (z2 = current.z) >= -start && 
+									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
 								) {
 							total += v;
 							++count;
@@ -647,22 +652,5 @@ public class Clouds extends JavaPlugin implements Listener {
 		}
 		return b;
 	}
-//	@EventHandler
-//	void testHorseSpawn(org.bukkit.event.player.PlayerInteractEvent event) {
-//		if(event.getAction() == Action.RIGHT_CLICK_BLOCK 
-//				&& event.getClickedBlock().getTypeId() == 2
-//				&& event.getPlayer().getItemInHand().getTypeId() == 0) {
-//			
-//			org.bukkit.Location l = event.getClickedBlock().getLocation();
-//			org.bukkit.craftbukkit.v1_6_R1.CraftWorld w = (org.bukkit.craftbukkit.v1_6_R1.CraftWorld) event.getPlayer().getWorld();
-//			net.minecraft.server.v1_6_R1.EntityHorse h = new net.minecraft.server.v1_6_R1.EntityHorse(w.getHandle());
-//			h.setLocation(l.getX(), l.getY() + 1, l.getZ(), l.getYaw(), l.getPitch());
-//			h.p(0);
-//			h.q(0);
-//			
-//			w.getHandle().addEntity(h);
-//
-//		}
-//	}
 	
 }

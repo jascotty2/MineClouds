@@ -8,7 +8,9 @@ commands:
   clouds:
     description: Main command for plugin
     usage: |
-         /clouds generate
+         /clouds generate region
+         /clouds generate chunk
+         /clouds generate server
     permission: clouds
 permissions:
   clouds:

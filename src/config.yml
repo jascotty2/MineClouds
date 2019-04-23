@@ -1,17 +1,42 @@
+##
+## Clouds Configuration File
+##
+
+# should clouds be generated everywhere?
+# Note: This is only for automatic generation
 globalEnabled: true
+
+# if not, what worlds is it enabled one?
+# Note: This is only for automatic generation
+# Clouds can still be manually generated on worlds not listed here
 enabledWorlds: world,another_world
+
+# Should fall damage be ignored if players fall onto a cloud?
+# (only affects plugin-generated clouds. Player-placed or spawned snow is not affected)
 softClouds: false
+
+# if you have a slower server or want to fill your server 
+# with clouds without using too many resources, 
+# you can use the legacy version. 
+# This creates a block at the bottom of the world chunks to say "This chunk is done"
+legacyGeneration: false
+block_id: 80
+block_data: 0
+
+# cloud settings
+min_cloud_size: 5
+max_cloud_size: -1
+
+# automatic cloud generator settings
 minCloudHeight: 6
 maxCloudDepth: 3
 cloudFloor: 80
 cloudCeiling: 200
+
+# advanced settings
 noiseScale: 0.05263157894736842105263157894737
 noiseOctaves: 6
 noisefreq: 0.4
 noiseamp: .3
-yScale: 2.1
 noisethreshold: .6
-min_cloud_size: 5
-max_cloud_size: -1
-block_id: 80
-block_data: 0
+yScale: 2.1
