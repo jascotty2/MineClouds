@@ -23,13 +23,17 @@ package me.jascotty2.clouds;
 //import java.io.FileOutputStream;
 //import java.io.OutputStreamWriter;
 //import java.io.Writer;
-
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 import me.jascotty2.libv2.io.CheckInput;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -45,7 +49,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.world.ChunkLoadEvent;
@@ -59,20 +62,71 @@ public class Clouds extends JavaPlugin implements Listener {
 	int minCloudHeight = 6;
 	int maxCloudDepth = 3;
 	int cloudFloor = 80;
-	int cloudCeiling = 200;
-	int ground[] = new int[]{1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16, 48, 49, 79, 82, 110};
+	int cloudCeiling = 250;
+	final Set<Material> groundTypes = new HashSet();
 	Map<World, SimplexOctaveGenerator> worldNoiseGenerators = new HashMap<>();
 	double noiseScale = 1 / 19.0;
 	int noiseOctaves = 6;
 	double noisefreq = 0.4, noiseamp = .3, yScale = 2.1;
 	double noisethreshold = .6;
 	int min_cloud_size = 5, max_cloud_size = -1;
-	int block_id = 80, block_data = 0;
+	//int block_id = 80, block_data = 0;
+	Material block_material = Material.POWDER_SNOW;
 	boolean global_enabled = true, softClouds = false;
 	String[] enabled_worlds = new String[0];
 
 	@Override
 	public void onEnable() {
+		//int ground[] = new int[]{1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 16, 48, 49, 79, 82, 110};
+		groundTypes.clear();
+		groundTypes.addAll(Arrays.asList(
+				Material.STONE,
+				Material.GRASS,
+				Material.DIRT,
+				Material.DIRT_PATH,
+				Material.FARMLAND,
+				Material.COARSE_DIRT,
+				Material.PODZOL,
+				Material.COBBLESTONE,
+				Material.WATER,
+				Material.LAVA,
+				Material.SAND,
+				Material.GRAVEL,
+				Material.RED_SAND,
+				Material.GOLD_ORE,
+				Material.IRON_ORE,
+				Material.COAL_BLOCK,
+				Material.MOSSY_COBBLESTONE,
+				Material.OBSIDIAN,
+				Material.SNOW,
+				Material.SNOW_BLOCK,
+				Material.ICE,
+				Material.FROSTED_ICE,
+				Material.MAGMA_BLOCK,
+				Material.CLAY,
+				Material.MYCELIUM,
+				Material.BEDROCK,
+				Material.TERRACOTTA,
+				Material.WHITE_TERRACOTTA,
+				Material.ORANGE_TERRACOTTA,
+				Material.MAGENTA_TERRACOTTA,
+				Material.LIGHT_BLUE_TERRACOTTA,
+				Material.YELLOW_TERRACOTTA,
+				Material.LIME_TERRACOTTA,
+				Material.PINK_TERRACOTTA,
+				Material.GRAY_TERRACOTTA,
+				Material.LIGHT_GRAY_TERRACOTTA,
+				Material.CYAN_TERRACOTTA,
+				Material.PURPLE_TERRACOTTA,
+				Material.BLUE_TERRACOTTA,
+				Material.BROWN_TERRACOTTA,
+				Material.GREEN_TERRACOTTA,
+				Material.RED_TERRACOTTA,
+				Material.BLACK_TERRACOTTA,
+				Material.GRANITE,
+				Material.DIORITE,
+				Material.ANDESITE
+		));
 		load();
 		getServer().getPluginManager().registerEvents(this, this);
 		try {
@@ -87,15 +141,15 @@ public class Clouds extends JavaPlugin implements Listener {
 	void load() {
 		saveDefaultConfig();
 		reloadConfig();
-		
+
 		global_enabled = getConfig().getBoolean("globalEnabled", global_enabled);
 		enabled_worlds = getConfig().getString("enabledWorlds", "").split(",");
-		for(int i = 0; i < enabled_worlds.length; ++i) {
+		for (int i = 0; i < enabled_worlds.length; ++i) {
 			enabled_worlds[i] = enabled_worlds[i].trim();
 		}
-		
-		softClouds =  getConfig().getBoolean("softClouds", softClouds);
-	
+
+		softClouds = getConfig().getBoolean("softClouds", softClouds);
+
 		minCloudHeight = configAssertInt("minCloudHeight", 0, 200);
 		maxCloudDepth = configAssertInt("maxCloudDepth", 1, 100);
 		cloudFloor = configAssertInt("cloudFloor", 0, 200);
@@ -107,45 +161,50 @@ public class Clouds extends JavaPlugin implements Listener {
 		yScale = getConfig().getDouble("yScale");
 		noisethreshold = getConfig().getDouble("noisethreshold");
 		min_cloud_size = configAssertInt("min_cloud_size", 0, 5000);
-		block_id = getConfig().getInt("block_id");
-		block_data = configAssertInt("block_data", 0, 16);
 		max_cloud_size = configAssertInt("max_cloud_size", -1, -1);
 		
+		String mat = getConfig().getString("block_type");
+		if (mat != null) {
+			Material m = Material.getMaterial(mat);
+			if (m != null) {
+				block_material = m;
+			} else {
+				getLogger().warning("Invalid Material in config: " + mat);
+			}
+		}
+
 		// validate data
-		if(noisefreq == 0) {
+		if (noisefreq == 0) {
 			getConfig().set("noisefreq", noisefreq = 1);
 		}
-		if(noiseamp == 0) {
+		if (noiseamp == 0) {
 			getConfig().set("noiseamp", noiseamp = 1);
 		}
-		if(cloudCeiling < cloudFloor) {
-			if(cloudFloor > 250) {
+		if (cloudCeiling < cloudFloor) {
+			if (cloudFloor > 250) {
 				getConfig().set("cloudFloor", cloudFloor = (cloudFloor - 10));
 			}
 			getConfig().set("cloudCeiling", cloudCeiling = cloudFloor + 10);
 		}
-		if(Material.getMaterial(block_id) == null) {
-			getConfig().set("block_id", block_id = 80);
-		}
-		
+
 		worldNoiseGenerators.clear();
 		getServer().getWorlds().stream()
 				.filter((w) -> (w.getEnvironment() == Environment.NORMAL))
 				.forEachOrdered((w) -> {
-			SimplexOctaveGenerator noise = new SimplexOctaveGenerator(w.getSeed(), noiseOctaves);
-			noise.setScale(noiseScale);
-			worldNoiseGenerators.put(w, noise);
-		});
-		
+					SimplexOctaveGenerator noise = new SimplexOctaveGenerator(w.getSeed(), noiseOctaves);
+					noise.setScale(noiseScale);
+					worldNoiseGenerators.put(w, noise);
+				});
+
 		saveConfig();
 	}
-	
+
 	int configAssertInt(String key, int lowerBound, int upperBound) {
 		int value = getConfig().getInt(key);
-		if(value < lowerBound) {
+		if (value < lowerBound) {
 			getConfig().set(key, lowerBound);
 			return lowerBound;
-		} else if(upperBound > lowerBound && value > upperBound) {
+		} else if (upperBound > lowerBound && value > upperBound) {
 			getConfig().set(key, upperBound);
 			return upperBound;
 		}
@@ -154,19 +213,18 @@ public class Clouds extends JavaPlugin implements Listener {
 
 	double configAssertDouble(String key, double lowerBound, double upperBound) {
 		double value = getConfig().getDouble(key);
-		if(value < lowerBound) {
+		if (value < lowerBound) {
 			getConfig().set(key, lowerBound);
 			return lowerBound;
-		} else if(upperBound > lowerBound && value > upperBound) {
+		} else if (upperBound > lowerBound && value > upperBound) {
 			getConfig().set(key, upperBound);
 			return upperBound;
 		}
 		return value;
 	}
-	
+
 	@Override
-	public boolean onCommand(CommandSender sender, Command command,
-			String commandLabel, String[] args) {
+	public boolean onCommand(CommandSender sender, Command command, String commandLabel, String[] args) {
 		boolean clear = args.length >= 1 && (args[0].equalsIgnoreCase("clear") || args[0].equalsIgnoreCase("remove"));
 		if (clear || (args.length >= 1 && (args[0].equalsIgnoreCase("generate") || args[0].equalsIgnoreCase("gen")))) {
 			if (!(sender instanceof Player)) {
@@ -174,14 +232,15 @@ public class Clouds extends JavaPlugin implements Listener {
 				return true;
 			}
 			int radius = 1;
-			if(args.length > 2 || (args.length == 2 && (radius = CheckInput.GetInt(args[1], 0)) <= 0)) {
+			if (args.length > 2 || (args.length == 2 && (radius = CheckInput.GetInt(args[1], 0)) <= 0)) {
 				sender.sendMessage(ChatColor.RED + "Invalid argument");
 				return false;
 			}
-			if(radius == 1) {
+			if (radius == 1) {
 				// clear existing clouds here
 				clearClouds(((Player) sender).getLocation().getChunk());
-				if(clear) {
+				updateClouds(((Player) sender).getLocation().getChunk());
+				if (clear) {
 					sender.sendMessage(ChatColor.AQUA + "Clouds Removed!");
 				} else {// regenerate chunk
 					genClouds(((Player) sender).getLocation().getChunk(), true);
@@ -194,7 +253,7 @@ public class Clouds extends JavaPlugin implements Listener {
 					return true;
 				} else {
 					run = new RunThread(sender, ((Player) sender).getLocation().getWorld(), radius);
-					if(clear) {
+					if (clear) {
 						run.gen = false;
 					}
 					// start thread
@@ -202,7 +261,7 @@ public class Clouds extends JavaPlugin implements Listener {
 					sender.sendMessage(ChatColor.AQUA + "Starting!");
 				}
 			}
-			
+
 		} else if (args.length == 1 && (args[0].equalsIgnoreCase("reload"))) {
 			load();
 			sender.sendMessage(ChatColor.AQUA + "Generator Settings Reloaded!");
@@ -210,6 +269,25 @@ public class Clouds extends JavaPlugin implements Listener {
 			return false;
 		}
 		return true;
+	}
+
+	@Override
+	public List<String> onTabComplete(CommandSender sender, Command command, String commandLabel, String[] args) {
+		List<String> options = null;
+		if (args.length <= 1) {
+			options = Arrays.asList("clear", "generate");
+		} else if (args.length <= 2) {
+			if (args[0].equalsIgnoreCase("generate")) {
+				options = Arrays.asList("<radius>");
+			}
+		}
+		if (options == null) {
+			return Collections.EMPTY_LIST;
+		}
+		final String sub = args.length == 0 ? "" : args[args.length - 1];
+		return options.stream()
+				.filter(e -> e != null && (sub.length() == 0 || e.startsWith(sub)))
+				.collect(Collectors.toList());
 	}
 
 	private static class Point3D {
@@ -253,13 +331,13 @@ public class Clouds extends JavaPlugin implements Listener {
 			area = (radius * 2) + 1;
 			areaix = -(area / 2);
 			areaiz = -(area / 2);
-			if(sender instanceof Player) {
+			if (sender instanceof Player) {
 				final Chunk il = ((Player) sender).getLocation().getChunk();
 				areaix += il.getX();
-				areaiz  += il.getZ();
+				areaiz += il.getZ();
 			}
 		}
-		
+
 		@Override
 		public void run() {
 			final int cx = areaix + (run % area);
@@ -269,7 +347,8 @@ public class Clouds extends JavaPlugin implements Listener {
 				Chunk c = w.getChunkAt(cx, cz);
 				// clear task
 				clearClouds(c);
-				if(gen) {
+				updateClouds(c);
+				if (gen) {
 					// generate
 					genClouds(c, true);
 				}
@@ -286,7 +365,7 @@ public class Clouds extends JavaPlugin implements Listener {
 			}
 		}
 	}
-	
+
 //	public static void main(String[] args) {
 //
 //		SimplexOctaveGenerator noise = new SimplexOctaveGenerator(592724999, 6);
@@ -390,14 +469,217 @@ public class Clouds extends JavaPlugin implements Listener {
 ////			Logger.getLogger(Clouds.class.getName()).log(Level.SEVERE, null, ex);
 //		}
 //	}
-	
 	void clearClouds(Chunk c) {
 		for (int x = 0; x < 16; ++x) {
-			for (int y = cloudFloor; y <= cloudCeiling; ++y) {
-				for (int z = 0; z < 16; ++z) {
+			for (int z = 0; z < 16; ++z) {
+				for (int y = cloudFloor; y <= cloudCeiling; ++y) {
 					final Block b = c.getBlock(x, y, z);
-					if (b.getTypeId() == block_id && b.getData() == block_data) {
-						b.setTypeId(0);
+					if (b.getType() == block_material) {
+						b.setType(Material.AIR);
+					}
+				}
+			}
+		}
+	}
+
+	final int cloudScanVersion = 3;
+
+	void updateClouds(Chunk c) {
+		for (int x = 0; x < 16; ++x) {
+			for (int z = 0; z < 16; ++z) {
+				// step one: find a cloud block that is: 1) the bottom of a cloud, and 2) a good distance from the ground
+				int lastGroundHeight = 0;
+				for (int y = cloudFloor; y <= cloudCeiling; ++y) {
+					final Block b = c.getBlock(x, y, z);
+					if (b.getType() == Material.SNOW_BLOCK && (y - lastGroundHeight) > 15) {
+						// only update if not updated already this reboot
+						List<MetadataValue> mv = b.getMetadata("clouds");
+						if (mv.isEmpty() || mv.get(0).asInt() != cloudScanVersion) {
+							//System.out.printf("Found cloud to update at (%d, %d, %d)\n", (c.getX() << 4) | x, y, (c.getZ() << 4) | z);
+							updateCloud(c.getWorld(), (c.getX() << 4) | x, y, (c.getZ() << 4) | z);
+						}// else {
+						//	System.out.printf("Skipping known cloud at (%d, %d, %d)\n", (c.getX() << 4) | x, y, (c.getZ() << 4) | z);
+						//}
+						y = 9999; // only check for one cloud per column
+					}// else if (b.getType() == Material.SNOW_BLOCK) {
+					//	System.out.printf("Skipping low cloud at (%d, %d, %d) at %d\n", (c.getX() << 4) | x, y, (c.getZ() << 4) | z, (y - lastGroundHeight));
+					//} 
+					else if (groundTypes.contains(b.getType())) {
+						lastGroundHeight = y;
+					}
+				}
+			}
+		}
+	}
+
+	void updateCloud(World w, int x, int y, int z) {
+		// find the full extent of the height/width (cuboid) of non-air blocks, and return if any are not snow blocks
+		// to be lazy, let's start with a reasonably-sized block:
+		Point3D min = new Point3D(x - 10, y - 5, z - 10);
+		Point3D max = new Point3D(x + 10, y + 30, z + 10);
+		// now let's check if our edges are actually edges:
+		boolean north = false, south = false, east = false, west = false, up = false, down = false, rerun = true;
+		while (rerun) {
+			rerun = false;
+			while (!north) {
+				// check north side
+				north = true;
+				int z2 = min.z;
+				for (int x2 = min.x; north && x2 < max.x; ++x2) {
+					for (int y2 = min.y; north && y2 < max.y; ++y2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							north = false;
+						}
+					}
+				}
+				if (!north) {
+					// need more north!
+					min.z -= 5;
+				}
+			}
+			while (!south) {
+				south = true;
+				int z2 = max.z;
+				for (int x2 = min.x; south && x2 < max.x; ++x2) {
+					for (int y2 = min.y; south && y2 < max.y; ++y2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							south = false;
+						}
+					}
+				}
+				if (!south) {
+					// need more south!
+					max.z += 5;
+				}
+			}
+			// now do the same thing, but east and west
+			while (!east) {
+				// check north side
+				east = true;
+				int x2 = min.x;
+				for (int z2 = min.z; east && z2 < max.z; ++z2) {
+					for (int y2 = min.y; east && y2 < max.y; ++y2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							east = false;
+						}
+					}
+				}
+				if (!east) {
+					// need more east!
+					min.x -= 5;
+				}
+			}
+			while (!west) {
+				west = true;
+				int x2 = max.x;
+				for (int z2 = min.z; west && z2 < max.z; ++z2) {
+					for (int y2 = min.y; west && y2 < max.y; ++y2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							west = false;
+						}
+					}
+				}
+				if (!west) {
+					// need more west!
+					max.x += 5;
+				}
+			}
+			// now for the tricky bits - if we move up or down, re-scan N/E/W/S
+
+			while (!up) {
+				up = true;
+				int y2 = max.y;
+				for (int x2 = min.x; up && x2 < max.x; ++x2) {
+					for (int z2 = min.z; up && z2 < max.z; ++z2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							rerun = true;
+							up = false;
+						}
+					}
+				}
+				if (!up) {
+					// need more west!
+					max.y += 5;
+				}
+			}
+
+			while (!down) {
+				down = true;
+				int y2 = min.y;
+				for (int x2 = min.x; down && x2 < max.x; ++x2) {
+					for (int z2 = min.z; down && z2 < max.z; ++z2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							rerun = true;
+							down = false;
+						}
+					}
+				}
+				if (!down) {
+					// need more west!
+					min.y -= 5;
+				}
+			}
+		}
+		// at this point we should have a good box around our cloud
+		// all we need to know is if there are non-snow blocks in this box
+		boolean isCloud = true;
+		int checked = 0;
+		for (int z2 = min.z; isCloud && z2 < max.z; ++z2) {
+			for (int x2 = min.x; isCloud && x2 < max.x; ++x2) {
+				for (int y2 = min.y; isCloud && y2 < max.y; ++y2) {
+					Block b = w.getBlockAt(x2, y2, z2);
+					++checked;
+					switch (b.getType()) {
+						case AIR:
+						case CAVE_AIR:
+						case SNOW:
+						case SNOW_BLOCK:
+						case POWDER_SNOW:
+							break;
+						default:
+							//System.out.printf("Found non-cloud block at (%d, %d, %d)\n", x2, y2, z2);
+							isCloud = false;
+					}
+				}
+			}
+		}
+		if (isCloud) {
+			//System.out.printf("Cloud updating! (%d, %d, %d) -> (%d, %d, %d) = %d\n", min.x, min.y, min.z, max.x, max.y, max.z, checked);
+			// replace snow with powder!
+			for (int z2 = min.z; z2 < max.z; ++z2) {
+				for (int x2 = min.x; x2 < max.x; ++x2) {
+					for (int y2 = min.y; y2 < max.y; ++y2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						if (b.getType() == Material.SNOW_BLOCK) {
+							b.setType(block_material, false);
+						}
+					}
+				}
+			}
+		} else {
+			//System.out.printf("Cloud Structure found - skipping! (%d, %d, %d) -> (%d, %d, %d) = %d\n", min.x, min.y, min.z, max.x, max.y, max.z, checked);
+			// mark as found and move on.
+			for (int z2 = min.z; z2 < max.z; ++z2) {
+				for (int x2 = min.x; x2 < max.x; ++x2) {
+					for (int y2 = min.y; y2 < max.y; ++y2) {
+						Block b = w.getBlockAt(x2, y2, z2);
+						switch (b.getType()) {
+							case AIR:
+							case CAVE_AIR:
+							case SNOW:
+								break;
+							case SNOW_BLOCK:
+								b.setMetadata("clouds", new FixedMetadataValue(this, cloudScanVersion));
+								break;
+							default:
+								y2 = 999;
+						}
 					}
 				}
 			}
@@ -408,6 +690,7 @@ public class Clouds extends JavaPlugin implements Listener {
 		if (c.getWorld().getEnvironment() != Environment.NORMAL) {
 			return;
 		}
+		//TODO: use a database for this!
 		if (!force) {
 			List<MetadataValue> meta = c.getBlock(0, 0, 0).getMetadata("clouds");
 			if (!meta.isEmpty()) {
@@ -424,16 +707,16 @@ public class Clouds extends JavaPlugin implements Listener {
 				}
 			}
 			// check if allowed on this world
-			if(!global_enabled) {
+			if (!global_enabled) {
 				boolean allow = false;
 				final String name = c.getWorld().getName();
-				for(String w : enabled_worlds) {
-					if(w != null && name.equalsIgnoreCase(w)) {
+				for (String w : enabled_worlds) {
+					if (w != null && name.equalsIgnoreCase(w)) {
 						allow = true;
 						break;
 					}
 				}
-				if(!allow) {
+				if (!allow) {
 					return;
 				}
 			}
@@ -452,7 +735,6 @@ public class Clouds extends JavaPlugin implements Listener {
 		// once all set, return to the chunk section - for each defined area, calculate the cloud base height
 		// then add top 2 layers (adding next layer if prior exists)
 		// additionally - calculate all 3 layers before determining base height
-
 		double[][][] cloudchunk = new double[16][maxCloudDepth][16];
 		boolean cloud = false;
 		for (int x = 0; x < 16; ++x) {
@@ -475,17 +757,10 @@ public class Clouds extends JavaPlugin implements Listener {
 			for (int z = 0; z < 16; ++z) {
 				for (int y = 255; y > 0; --y) {
 					final Block b = c.getBlock(x, y, z);
-					if (!b.isEmpty() && !(b.getTypeId() == block_id && b.getData() == block_data)) {
-						boolean isground = false;
-						for (int i = 0; i < ground.length && !isground; ++i) {
-							if (ground[i] == b.getTypeId()) {
-								isground = true;
-							}
-						}
-						if (isground) {
-							landHeight[x][z] = y;
-							break;
-						}
+					if (!b.isEmpty() && !(b.getType() == block_material)
+							&& groundTypes.contains(b.getType())) {
+						landHeight[x][z] = y;
+						break;
 					}
 				}
 			}
@@ -497,7 +772,7 @@ public class Clouds extends JavaPlugin implements Listener {
 		double[][][] cloudCache = new double[end][maxCloudDepth][end];
 
 		// find & seperate the clouds
-		Stack<Point3D> path = new Stack<Point3D>();
+		Stack<Point3D> path = new Stack();
 		double[][][] tempCloud = new double[16][maxCloudDepth][16];
 		double total;
 		int count;
@@ -531,24 +806,24 @@ public class Clouds extends JavaPlugin implements Listener {
 						if () {*/
 						//*
 						if (false // spacer, for formatting, lol
-								|| ((x2 = current.x + 1) < start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && 
-									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
-									: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z + 1) < start && 
-									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
-									: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y + 1) < maxCloudDepth && (z2 = current.z) >= -start && 
-									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
-									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x - 1) >= -start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start && 
-									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
-									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z - 1) >= -start && 
-									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
-									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
-								|| ((x2 = current.x) >= -start && (y2 = current.y - 1) >= 0 && (z2 = current.z) >= -start && 
-									(v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
-									 : (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x + 1) < start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start
+								&& (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+										: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z + 1) < start
+								&& (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+										: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y + 1) < maxCloudDepth && (z2 = current.z) >= -start
+								&& (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+										: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x - 1) >= -start && (y2 = current.y) >= 0 && (z2 = current.z) >= -start
+								&& (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+										: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y) >= 0 && (z2 = current.z - 1) >= -start
+								&& (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+										: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
+								|| ((x2 = current.x) >= -start && (y2 = current.y - 1) >= 0 && (z2 = current.z) >= -start
+								&& (v = ((x2 >= 0 && x2 < 16 && z2 >= 0 && z2 < 16) ? cloudchunk[x2][y2][z2]
+										: (cloudCache[start + x2][y2][start + z2] == 0 ? (cloudCache[start + x2][y2][start + z2] = (noise.noise(x2 + ix, y2 * yScale, z2 + iz, noisefreq, noiseamp, true) - noisethreshold)) : cloudCache[start + x2][y2][start + z2]))) > 0) //
 								) {
 							total += v;
 							++count;
@@ -595,7 +870,8 @@ public class Clouds extends JavaPlugin implements Listener {
 								for (int y2 = 0; y2 < maxCloudDepth; ++y2) {
 									for (int z2 = 0; z2 < 16; ++z2) {
 										if (tempCloud[x2][y2][z2] > 0) {
-											c.getBlock(x2, height + y2, z2).setTypeIdAndData(block_id, (byte) block_data, false);
+											c.getBlock(x2, height + y2, z2).setType(block_material, false);
+											//c.getBlock(x2, height + y2, z2).setTypeIdAndData(block_id, (byte) block_data, false);
 										}
 									}
 								}
@@ -609,48 +885,59 @@ public class Clouds extends JavaPlugin implements Listener {
 			//}
 		}
 		// mark this chunk so don't mistakenly re-generate clouds
-		c.getBlock(0, 0, 0).setTypeId(7);
-		c.getBlock(0, 0, 0).setMetadata("clouds", new FixedMetadataValue(this, true));
+		//c.getBlock(0, 0, 0).setTypeId(7);
+		//c.getBlock(0, 0, 0).setMetadata("clouds", new FixedMetadataValue(this, true));
 	}
 
 	@EventHandler
 	void onChunkGen(ChunkLoadEvent event) {
-		genClouds(event.getChunk(), false);
+		if(event.isNewChunk()) genClouds(event.getChunk(), false);
+		//if(!event.isNewChunk()) updateClouds(event.getChunk());
 	}
 
-	@EventHandler
-	void onSpawn(CreatureSpawnEvent event) {
-		// cancel spawning on 'clouds'
-		Block b = event.getLocation().getBlock();
-		while (b != null && b.isEmpty()) {
-			b = b.getRelative(BlockFace.DOWN);
-		}
-		if (b != null
-				&& b.getTypeId() == block_id
-				&& b.getY() >= cloudFloor
-				&& event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
-			event.setCancelled(true);
-		}
-	}
-	
+//	@EventHandler
+//	void onSpawn(CreatureSpawnEvent event) {
+//		// cancel spawning on 'clouds'
+//		Block b = event.getLocation().getBlock();
+//		while (b != null && b.isEmpty()) {
+//			b = b.getRelative(BlockFace.DOWN);
+//		}
+//		if (b != null
+//				&& b.getTypeId() == block_id
+//				&& b.getY() >= cloudFloor
+//				&& event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
+//			event.setCancelled(true);
+//		}
+//	}
 	@EventHandler(priority = EventPriority.LOW)
 	void onCloudFall(EntityDamageEvent event) {
-		if(softClouds && event.getCause() == DamageCause.FALL) {
+		if (softClouds && event.getCause() == DamageCause.FALL) {
 			Block landing = getBlockBelow(event.getEntity().getLocation());
-			if(landing.getY() > cloudFloor && landing.getY() < cloudCeiling 
-					&& landing.getTypeId() == block_id
-					&& landing.getData() == block_data) {
+			if (landing.getY() > cloudFloor && landing.getY() < cloudCeiling
+					&& landing.getType() == block_material) {
 				event.setCancelled(true);
-			} 
+			}
 		}
 	}
-	
+
 	Block getBlockBelow(Location l) {
 		Block b = l.getBlock();
-		while(b.getY() > 0 && b.isEmpty()) {
+		while (b.getY() > 0 && b.isEmpty()) {
 			b = b.getRelative(BlockFace.DOWN);
 		}
 		return b;
 	}
-	
+
+}
+
+class Point3D {
+
+	public int x, y, z;
+
+	public Point3D(int x, int y, int z) {
+		this.x = x;
+		this.y = y;
+		this.z = z;
+	}
+
 }

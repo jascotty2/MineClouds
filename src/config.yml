@@ -20,8 +20,9 @@ softClouds: false
 # you can use the legacy version. 
 # This creates a block at the bottom of the world chunks to say "This chunk is done"
 legacyGeneration: false
-block_id: 80
-block_data: 0
+# What type of material to make the clouds out of
+# A list of options can be found at https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/Material.html
+block_type: POWDER_SNOW
 
 # cloud settings
 min_cloud_size: 5

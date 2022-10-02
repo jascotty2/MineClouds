@@ -1,6 +1,7 @@
 name: Clouds
 main: me.jascotty2.clouds.Clouds
 version: 0.6
+api-version: 1.19
 website: https://github.com/jascotty2
 author: jascotty2
 description: Generates Snow Block Clouds
@@ -8,9 +9,7 @@ commands:
   clouds:
     description: Main command for plugin
     usage: |
-         /clouds generate region
-         /clouds generate chunk
-         /clouds generate server
+         /clouds generate <radius>
     permission: clouds
 permissions:
   clouds:
