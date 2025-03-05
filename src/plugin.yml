@@ -1,7 +1,7 @@
 name: Clouds
 main: me.jascotty2.clouds.Clouds
-version: 0.6
-api-version: 1.19
+version: 0.6.1
+api-version: 1.21
 website: https://github.com/jascotty2
 author: jascotty2
 description: Generates Snow Block Clouds
