@@ -892,7 +892,7 @@ public class Clouds extends JavaPlugin implements Listener {
 	@EventHandler
 	void onChunkGen(ChunkLoadEvent event) {
 		if(event.isNewChunk()) genClouds(event.getChunk(), true);
-		if(!event.isNewChunk()) updateClouds(event.getChunk());
+		//if(!event.isNewChunk()) updateClouds(event.getChunk());
 	}
 
 //	@EventHandler
